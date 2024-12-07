@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Encoding=UTF-8
+Name=Smartgit
+Comment=Smartgit
+Exec=bash -i "/opt/smartgit/bin/smartgit.sh" %f
+Icon=/opt/smartgit/bin/smartgit-32.png
+Terminal=false

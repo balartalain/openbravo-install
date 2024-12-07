@@ -5,25 +5,41 @@ SETUP_DIR="$(dirname "$(realpath "$0")")"
 install_package() {
   PACKAGE=$1
   if dpkg -l | grep -qw "$PACKAGE"; then
-    echo "$PACKAGE is already installed."
+    echo "--$PACKAGE is already installed."
   else
-    echo "Installing $PACKAGE..."
+    echo "################ Installing $PACKAGE...##################"
     sudo apt-get install -y "$PACKAGE" || { echo "Error installing $PACKAGE."; exit 1; }
   fi
 }
 
-PACKAGES=("zsh" "git" "curl" "postgresql-12" "google-chrome-stable" "openjdk-11-jdk" "ant" "python3-tqdm")
+PACKAGES=("zsh" "git" "curl" "nodejs" "npm" "postgresql-12" "postgresql-client-12"  "openjdk-11-jdk" "ant" "google-chrome-stable" "python3-tqdm")
 
 # Add Google Chrome repo
 if ! grep -q "^deb .*dl.google.com/linux/chrome/deb/" /etc/apt/sources.list /etc/apt/sources.list.d/*; then
-  echo "Añadiendo repositorio de Google Chrome..."
-  wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo tee /usr/share/keyrings/google-chrome-archive-keyring.gpg > /dev/null
-  echo "deb [signed-by=/usr/share/keyrings/google-chrome-archive-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
-  sudo apt-get update
+   wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo gpg --dearmour -o /usr/share/keyrings/chrome-keyring.gpg 
+   sudo sh -c 'echo "deb [arch=amd64 signed-by=/usr/share/keyrings/chrome-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google.list' 
+#  echo "Añadiendo repositorio de Google Chrome..."
+#  wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo tee /usr/share/keyrings/google-chrome-archive-keyring.gpg > /dev/null
+#  echo "deb [signed-by=/usr/share/keyrings/google-chrome-archive-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
+#  sudo apt-get update
 fi
 
 # Node y Npm
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+PACKAGE="curl"
+if ! dpkg -l | grep -qw "$PACKAGE"; then
+ curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+fi
+# Postgres
+PACKAGE="postgresql"
+if ! dpkg -l | grep -qw "$PACKAGE"; then
+ curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc|sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg
+ #sudo sh -c 'curl https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/apt.postgresql.org.gpg >/dev/null'
+ echo "deb http://apt.postgresql.org/pub/repos/apt/ `lsb_release -cs`-pgdg main" |sudo tee  /etc/apt/sources.list.d/pgdg.list
+ #sudo sh -c 'echo "deb [arch=amd64 signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+fi
+
+# Update package
+sudo apt update
 
 # Install packages
 for PACKAGE in "${PACKAGES[@]}"; do
@@ -44,29 +60,42 @@ else
     exit 1
   fi
 fi
+
 # Apache
-cd "$SETUP_DIR" || exit
-tar xf apache-tomcat-9.0.*.tar.gz
-sudo mv apache-tomcat-9.0.97 /opt/
-cd /opt
-sudo ln -s apache-tomcat-9.0.* apache-tomcat-9.0
-sudo sh -c 'echo "export CATALINA_OPTS=\"-server -Djava.awt.headless=true -Xms512M -Xmx1024M\"" >> /etc/environment'
-sudo sh -c 'echo "export CATALINA_HOME=/opt/apache-tomcat-9.0" >> /etc/environment'
-sudo sh -c 'echo "export CATALINA_BASE=/opt/apache-tomcat-9.0" >> /etc/environment'
- 
+EXISTE=$(ls /opt | grep -i apache)
+if ![ -z "$EXISTE" ]; then
+ cd "$SETUP_DIR" || exit
+ tar xf apache-tomcat-9.0.*.tar.gz
+ sudo mv apache-tomcat-9.0.97 /opt/
+ cd /opt
+ sudo ln -s apache-tomcat-9.0.* apache-tomcat-9.0
+ sudo sh -c 'echo "export CATALINA_OPTS=\"-server -Djava.awt.headless=true -Xms512M -Xmx1024M\"" >> /etc/environment'
+ sudo sh -c 'echo "export CATALINA_HOME=/opt/apache-tomcat-9.0" >> /etc/environment'
+ sudo sh -c 'echo "export CATALINA_BASE=/opt/apache-tomcat-9.0" >> /etc/environment'
+fi
+
 # Eclipse
-cd "$SETUP_DIR" || exit
-tar xf eclipse-jee-*.tar.gz
-sudo mv eclipse /opt/
-#cd /opt 
-#sudo ln -s eclipse-2024-12 eclipse
-cd /usr/local/bin
-sudo ln -s /opt/eclipse/eclipse eclipse
+EXISTE=$(ls /opt | grep -i eclipse)
+if ![ -z "$EXISTE" ]; then
+  cd "$SETUP_DIR" || exit
+  tar xf eclipse-jee-*.tar.gz
+  sudo mv eclipse /opt/
+  cd /usr/local/bin
+  sudo ln -s /opt/eclipse/eclipse eclipse
+  sudo sh -c 'echo "JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64" >> /etc/environment'
+  sudo sh -c 'echo "export ANT_OPTS=\"-Xmx1024M\"" >> /etc/environment'
+fi
 
 # Smartgit
-cd "$SETUP_DIR" || exit
-tar xf smartgit-linux-19_1_8.tar.gz
-sudo mv smartgit /opt/
+EXISTE=$(ls /opt | grep -i smartgit)
+if ![ -z "$EXISTE" ]; then
+  cd "$SETUP_DIR" || exit
+  tar xf smartgit-linux-19_1_8.tar.gz
+  sudo mv smartgit /opt/
+fi
+
+# Postgres config
+sudo -u postgres psql -c "alter user postgres with password 'postgres';"
 
 # CONFIGURATION FILES
 CONFIG_FILES=(
@@ -86,6 +115,4 @@ for FILE_PAIR in "${CONFIG_FILES[@]}"; do
   fi
 done
 
-sudo sh -c 'echo "JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64" >> /etc/environment'
-sudo sh -c 'echo "export ANT_OPTS=\"-Xmx1024M\"" >> /etc/environment'
 echo "DONE."
